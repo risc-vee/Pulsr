@@ -3,7 +3,17 @@ using System.Threading.Channels;
 
 namespace Pulstr
 {
-    public sealed class EventBroadcaster<TEvent> : IDisposable
+    /// <summary>
+    /// A singleton event broadcaster that allows multiple subscribers to receive events.
+    /// Each subscriber gets a dedicated channel for receiving events, and the broadcaster
+    /// can broadcast events to all subscribers concurrently.
+    /// </summary>
+    /// <typeparam name="TEvent">The type of events being broadcasted.</typeparam>
+    /// <remarks>
+    /// This class is designed to be used as a singleton service in a DI container.
+    /// It is thread-safe and can be used in concurrent scenarios.
+    /// </remarks>
+    public sealed class Pulstr<TEvent> : IDisposable
     {
         // ImmutableList + ImmutableInterlocked ensures thread-safe updates
         // to the list of active subscriber writers. Suitable for a shared singleton.
@@ -26,7 +36,7 @@ namespace Pulstr
         public (ChannelReader<TEvent> Reader, IDisposable Subscription) Subscribe()
         {
             // Check disposed state upfront.
-            if (_disposed) throw new ObjectDisposedException(nameof(EventBroadcaster<TEvent>));
+            if (_disposed) throw new ObjectDisposedException(nameof(Pulstr<TEvent>));
 
             // Create a new channel specifically for this subscriber.
             var channel = Channel.CreateUnbounded<TEvent>(new UnboundedChannelOptions
@@ -165,11 +175,11 @@ namespace Pulstr
         private sealed class Subscription : IDisposable
         {
             // Holds a reference back to the singleton broadcaster instance.
-            private EventBroadcaster<TEvent>? _broadcaster;
+            private Pulstr<TEvent>? _broadcaster;
             // Holds the specific writer associated with this subscription.
             private ChannelWriter<TEvent>? _writer;
 
-            public Subscription(EventBroadcaster<TEvent> broadcaster, ChannelWriter<TEvent> writer)
+            public Subscription(Pulstr<TEvent> broadcaster, ChannelWriter<TEvent> writer)
             {
                 _broadcaster = broadcaster;
                 _writer = writer;
