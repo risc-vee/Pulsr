@@ -5,6 +5,8 @@ VisualStudioVersion = 17.8.34316.72
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulstr", "Pulstr\Pulstr.csproj", "{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulstr.Tests", "Pulstr.Tests\Pulstr.Tests.csproj", "{15A52BEE-F552-4DE9-BD13-2B82821A8E83}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15A52BEE-F552-4DE9-BD13-2B82821A8E83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15A52BEE-F552-4DE9-BD13-2B82821A8E83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15A52BEE-F552-4DE9-BD13-2B82821A8E83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15A52BEE-F552-4DE9-BD13-2B82821A8E83}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
