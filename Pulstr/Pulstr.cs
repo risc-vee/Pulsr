@@ -81,7 +81,7 @@ namespace Pulstr
         /// This method is thread-safe and can be called concurrently.
         /// </summary>
         /// <param name="ev">The event to broadcast.</param>
-        public async Task BroadcastAsync(TEvent ev)
+        public async ValueTask BroadcastAsync(TEvent ev)
         {
             // Check disposed state. If disposed, silently do nothing or throw,
             // depending on desired behavior upon shutdown. Silently is often fine.
