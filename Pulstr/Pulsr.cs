@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using System.Threading.Channels;
 
-namespace Pulstr
+namespace Pulsr
 {
     /// <summary>
     /// A singleton event broadcaster that allows multiple subscribers to receive events.
@@ -13,7 +13,7 @@ namespace Pulstr
     /// This class is designed to be used as a singleton service in a DI container.
     /// It is thread-safe and can be used in concurrent scenarios.
     /// </remarks>
-    public sealed class Pulstr<TEvent> : IDisposable
+    public sealed class Pulsr<TEvent> : IDisposable
     {
         // ImmutableList + ImmutableInterlocked ensures thread-safe updates
         // to the list of active subscriber writers. Suitable for a shared singleton.
@@ -36,7 +36,7 @@ namespace Pulstr
         public (ChannelReader<TEvent> Reader, IDisposable Subscription) Subscribe()
         {
             // Check disposed state upfront.
-            if (_disposed) throw new ObjectDisposedException(nameof(Pulstr<TEvent>));
+            if (_disposed) throw new ObjectDisposedException(nameof(Pulsr<TEvent>));
 
             // Create a new channel specifically for this subscriber.
             var channel = Channel.CreateUnbounded<TEvent>(new UnboundedChannelOptions
@@ -175,11 +175,11 @@ namespace Pulstr
         private sealed class Subscription : IDisposable
         {
             // Holds a reference back to the singleton broadcaster instance.
-            private Pulstr<TEvent>? _broadcaster;
+            private Pulsr<TEvent>? _broadcaster;
             // Holds the specific writer associated with this subscription.
             private ChannelWriter<TEvent>? _writer;
 
-            public Subscription(Pulstr<TEvent> broadcaster, ChannelWriter<TEvent> writer)
+            public Subscription(Pulsr<TEvent> broadcaster, ChannelWriter<TEvent> writer)
             {
                 _broadcaster = broadcaster;
                 _writer = writer;

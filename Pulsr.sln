@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34316.72
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulstr", "Pulstr\Pulstr.csproj", "{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulsr", "Pulstr\Pulsr.csproj", "{445B757A-CD22-4BD2-A06A-7DBF5BAE41A0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulstr.Tests", "Pulstr.Tests\Pulstr.Tests.csproj", "{15A52BEE-F552-4DE9-BD13-2B82821A8E83}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulsr.Tests", "Pulstr.Tests\Pulsr.Tests.csproj", "{15A52BEE-F552-4DE9-BD13-2B82821A8E83}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulstr.Benchmarks", "Pulstr.Benchmarks\Pulstr.Benchmarks.csproj", "{4EA591D9-8E25-41F4-B910-F518693CE733}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pulsr.Benchmarks", "Pulstr.Benchmarks\Pulsr.Benchmarks.csproj", "{4EA591D9-8E25-41F4-B910-F518693CE733}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

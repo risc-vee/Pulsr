@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 
-namespace Pulstr.Benchmarks
+namespace Pulsr.Benchmarks
 {
     public readonly record struct MyEvent(int Value);
 
@@ -14,7 +14,7 @@ namespace Pulstr.Benchmarks
     [MemoryDiagnoser]
     [ShortRunJob] // Use a shorter run for the very slow 10k subscriber case.
     [Description("Unified benchmark to test concurrent performance across a range of subscriber counts.")]
-    public class PulstrScalingConcurrentBenchmark
+    public class PulsrScalingConcurrentBenchmark
     {
         // --- Workload Configuration ---
         // We'll run a fixed number of operations to see how the time changes as subscribers increase.
@@ -25,7 +25,7 @@ namespace Pulstr.Benchmarks
         private const int TotalOperations = BroadcastsPerRun + ChurnsPerRun; // = 110
 
         // --- Benchmark State ---
-        private RobustPulstr<MyEvent> _pulstr;
+        private Pulsr<MyEvent> _pulsr;
         private readonly MyEvent _eventToBroadcast = new(42);
 
         // --- Parameters for Scaling ---
@@ -44,17 +44,17 @@ namespace Pulstr.Benchmarks
         {
             // This setup runs for each combination of parameters.
             // It will be very fast for SubscriberCount=10 and noticeably slower for SubscriberCount=10000.
-            _pulstr = new RobustPulstr<MyEvent>();
+            _pulsr = new Pulsr<MyEvent>();
             for (int i = 0; i < SubscriberCount; i++)
             {
-                var (_, subscription) = _pulstr.Subscribe();
+                var (_, subscription) = _pulsr.Subscribe();
             }
         }
 
         [GlobalCleanup]
         public void GlobalCleanup()
         {
-            _pulstr.Dispose();
+            _pulsr.Dispose();
         }
 
         [Benchmark(OperationsPerInvoke = TotalOperations)]
@@ -72,7 +72,7 @@ namespace Pulstr.Benchmarks
                 {
                     for (int j = 0; j < broadcastsPerThread; j++)
                     {
-                        await _pulstr.BroadcastAsync(_eventToBroadcast);
+                        await _pulsr.BroadcastAsync(_eventToBroadcast);
                     }
                 }));
             }
@@ -84,7 +84,7 @@ namespace Pulstr.Benchmarks
                 {
                     for (int j = 0; j < churnsPerThread; j++)
                     {
-                        var (_, subscription) = _pulstr.Subscribe();
+                        var (_, subscription) = _pulsr.Subscribe();
                         subscription.Dispose();
                     }
                 }));
