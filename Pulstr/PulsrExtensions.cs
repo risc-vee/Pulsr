@@ -5,15 +5,15 @@ namespace Pulsr
     public static class PulsrExtensions
     {
         /// <summary>
-        /// Registers a <see cref="Pulsr{TEvent}"/> singleton that broadcasts messages of type <see cref="{TEvent}"/>
+        /// Registers a <see cref="Pulsr{TMessage}"/> singleton that broadcasts messages of type <see cref="{TMessage}"/>
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="TMessage"></typeparam>
         /// <param name="services"></param>
         /// <returns></returns>
-        public static IServiceCollection AddPulstr<T>(this IServiceCollection services)
+        public static IServiceCollection AddPulstr<TMessage>(this IServiceCollection services)
         {
             // Register the Pulstr singleton service with the DI container.
-            services.AddSingleton(typeof(Pulsr<T>));
+            services.AddSingleton(typeof(Pulsr<TMessage>));
             
             // Return the modified service collection for further configuration if needed.
             return services;
