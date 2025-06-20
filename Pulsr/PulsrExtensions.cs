@@ -12,10 +12,8 @@ namespace Pulsr
         /// <returns></returns>
         public static IServiceCollection AddPulstr<TMessage>(this IServiceCollection services)
         {
-            // Register the Pulstr singleton service with the DI container.
             services.AddSingleton(typeof(Pulsr<TMessage>));
             
-            // Return the modified service collection for further configuration if needed.
             return services;
         }
     }
