@@ -4,10 +4,10 @@ Pulsr is a concurrent, high-performance, in-process publish-subscribe broadcaste
 
 ## Why Pulsr?
 
-Pulsr was born out of a practical need: we wanted to send real-time notifications to clients connected via Server-Sent Events (SSE). Each connected client needed to asynchronously receive messages emitted by our background jobs. 
+Pulsr was born out of a practical need: we wanted to send real-time notifications to clients connected via Server-Sent Events (SSE). Each connected client needed to asynchronously receive messages emitted by our background jobs.
 
 However, this wasn't straightforward. Typical solutions required external message brokers like Redis or Kafka to route messages from background tasks to connected clients. We wanted to avoid introducing another moving part to our application stack.
 
-After some research, we discovered [.NET Channels](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels), a powerful tool for in-process messaging. However, channels in .NET follow a producer-consumer pattern where **only one consumer** can read each message, as they are consumed in a competing fashion.
+After some research, we discovered .NET Channels, a powerful tool for in-process messaging. However, channels in .NET follow a producer-consumer pattern where only one consumer can read each message, as they are consumed in a competing fashion.
 
-This limitation led us to build Pulsr: a higher-level abstraction over .NET Channels that enables **dedicated channels per client**, allowing multiple consumers to receive relevant messages independently. With Pulsr, we were able to efficiently and safely broadcast messages from background jobs to many in-process subscribers — all without relying on external infrastructure.
+This limitation led us to build Pulsr: a higher-level abstraction over .NET Channels that enables dedicated channels per client, allowing multiple consumers to receive relevant messages independently. Each Pulsr instance centrally manages concurrent subscriptions, unsubscriptions, and broadcasting, providing a clean and efficient way to route messages from producers to many in-process subscribers — all without relying on external infrastructure.
