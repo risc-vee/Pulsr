@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Pulstr\Pulsr.csproj" />
+    <ProjectReference Include="..\Pulsr\Pulsr.csproj" />
   </ItemGroup>
 
 </Project>
