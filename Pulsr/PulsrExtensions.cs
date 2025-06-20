@@ -7,7 +7,7 @@ namespace Pulsr
         /// <summary>
         /// Registers a <see cref="Pulsr{TMessage}"/> singleton that broadcasts messages of type <see cref="{TMessage}"/>
         /// </summary>
-        /// <typeparam name="TMessage"></typeparam>
+        /// <typeparam name="TMessage">The type of messages to broadcast.</typeparam>
         /// <param name="services"></param>
         /// <returns></returns>
         public static IServiceCollection AddPulstr<TMessage>(this IServiceCollection services)
