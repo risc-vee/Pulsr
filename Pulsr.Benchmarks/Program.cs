@@ -6,7 +6,7 @@ namespace Pulsr.Benchmarks
     {
         static void Main(string[] args)
         {
-            var summary = BenchmarkRunner.Run<PulsrScalingConcurrentBenchmark>();
+            BenchmarkRunner.Run<PulsrRampUpHighChurnBurstsBenchmark>();
         }
     }
 }

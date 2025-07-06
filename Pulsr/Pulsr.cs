@@ -1,10 +1,10 @@
-using System.Collections.Immutable;
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 namespace Pulsr
 {
     /// <summary>
-    /// An in-memory publish-subscribe broadcaster that concurrently distributes messages
+    /// An in-process publish-subscribe broadcaster that concurrently distributes messages
     /// to multiple subscribers. Each subscriber receives messages through a dedicated channel,
     /// ensuring isolated and efficient message delivery.
     /// </summary>
@@ -16,7 +16,9 @@ namespace Pulsr
     /// </remarks>
     public sealed class Pulsr<TMessage> : IDisposable
     {
-        private ImmutableList<ChannelWriter<TMessage>> _writers = ImmutableList<ChannelWriter<TMessage>>.Empty;
+        private static long _nextSubscriptionId = 0;
+
+        private ConcurrentDictionary<long, ChannelWriter<TMessage>> _writers = new();
 
         private volatile bool _disposed = false;
 
@@ -42,83 +44,70 @@ namespace Pulsr
                 SingleWriter = false //the channel can be written to concurrently
             });
 
-            var writer = channel.Writer;
-
-            ImmutableInterlocked.Update(ref _writers, list => list.Add(writer));
-
+            var subscriptionId = Interlocked.Increment(ref _nextSubscriptionId);
+            
+            _writers.TryAdd(subscriptionId, channel.Writer);
+            
             //The subscription handle knows how to remove this specific writer
             //from the shared broadcaster instance.
-            var subscription = new Subscription(this, writer);
+            var subscription = new Subscription(this, subscriptionId);
 
             return (channel.Reader, subscription);
         }
 
         /// <summary>
-        /// Removes a subscriber's channel writer and completes it.
-        /// Called internally by Subscription.Dispose(). Thread-safe.
+        /// Removes a subscriber's channel by its unique ID and completes it.
         /// </summary>
-        private void Unsubscribe(ChannelWriter<TMessage> writer)
+        private void Unsubscribe(long subscriptionId)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(Pulsr<TMessage>));
 
-            ImmutableInterlocked.Update(ref _writers, list => list.Remove(writer));
-
-            //Signal to the reader associated with this writer that no more items
-            //will be coming *from this broadcaster*. Essential for graceful shutdown
-            //of the subscriber's reading loop.
-            writer.TryComplete();
+            if (_writers.TryRemove(subscriptionId, out var writer))
+            {
+                writer.TryComplete();
+            }
         }
 
         /// <summary>
-        /// Broadcasts an message to all currently subscribed channel writers.
+        /// Broadcasts a message to all currently subscribed channel writers.
         /// This method is thread-safe and can be called concurrently.
         /// </summary>
-        /// <param name="ev">The message to broadcast.</param>
         public async ValueTask BroadcastAsync(TMessage ev)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(Pulsr<TMessage>));
 
-            //Take an atomic snapshot of the current list of writers.
-            //This ensures we work with a consistent set for this specific broadcast.
-            var currentWriters = _writers;
-            //TODO: check how its snapshotted
-
-            if (currentWriters.IsEmpty)
+            if (_writers.IsEmpty)
             {
                 return;
             }
-            if (currentWriters.Count == 1)
+
+            if (_writers.Count == 1)
             {
-                await WriteToChannelAsync(currentWriters[0], ev).ConfigureAwait(false);
+                var w = _writers.Single();
+                await WriteToChannelAsync(w.Key, w.Value, ev).ConfigureAwait(false);
                 return;
             }
 
-            var tasks = new Task[currentWriters.Count];
-            for (int i = 0; i < currentWriters.Count; i++)
+            var tasks = new List<Task>(_writers.Count);
+            foreach (var (subscriptionId, writer) in _writers)
             {
-                tasks[i] = WriteToChannelAsync(currentWriters[i], ev);
+                tasks.Add(WriteToChannelAsync(subscriptionId, writer, ev));
             }
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Helper to write to a single channel with appropriate error handling,
-        /// especially for channels closed by subscribers.
-        /// </summary>
-        private async Task WriteToChannelAsync(ChannelWriter<TMessage> writer, TMessage ev)
+        private async Task WriteToChannelAsync(long subscriptionId, ChannelWriter<TMessage> writer, TMessage ev)
         {
             try
             {
                 await writer.WriteAsync(ev).ConfigureAwait(false);
             }
             catch (ChannelClosedException)
-            {
-                //we don't want to throw an exception if the channel is closed by the subscriber.
-            }
+            { }
             catch (Exception ex)
             {
-                //TODO: implement proper logging
-                Console.WriteLine($"[Pulsr] Error writing message to subscriber channel: {ex.GetType().Name} - {ex.Message}");
+                //TODO: Replace with injected ILogger for proper production logging.
+                Console.WriteLine($"[Pulsr] Error writing to subscriber {subscriptionId}: {ex.Message}");
             }
         }
 
@@ -131,20 +120,21 @@ namespace Pulsr
         /// </summary>
         public void Dispose()
         {
-            if (_disposed) return;
+            if (_disposed) throw new ObjectDisposedException(nameof(Pulsr<TMessage>));
+
             _disposed = true;
 
             //Atomically get the final list of writers and clear the shared list
             //to prevent any further Subscribe or Broadcast operations from succeeding fully.
-            var writersToCleanup = Interlocked.Exchange(ref _writers, ImmutableList<ChannelWriter<TMessage>>.Empty);
+            var writersToCleanup = Interlocked.Exchange(ref _writers, new ConcurrentDictionary<long, ChannelWriter<TMessage>>());
 
             //Complete all channels that this broadcaster created and managed.
             //This signals all currently active subscribers that the source is gone.
-            foreach (var writer in writersToCleanup)
+            foreach (var (_, writer) in writersToCleanup)
             {
                 writer.TryComplete();
             }
-            //TODO: implement proper logging
+            // TODO: Replace with injected ILogger.
             Console.WriteLine($"[Pulsr] {nameof(Pulsr<TMessage>)} disposed. Completed {writersToCleanup.Count} remaining channels.");
         }
 
@@ -156,29 +146,26 @@ namespace Pulsr
         {
             //holds a reference back to the singleton broadcaster instance.
             private Pulsr<TMessage>? _broadcaster;
-            //holds the specific writer associated with this subscription.
-            private ChannelWriter<TMessage>? _writer;
 
-            public Subscription(Pulsr<TMessage> broadcaster, ChannelWriter<TMessage> writer)
+            //We use 0 as the "disposed" sentinel value.
+            private long _subscriptionId; 
+
+            public Subscription(Pulsr<TMessage> broadcaster, long subscriptionId)
             {
                 _broadcaster = broadcaster;
-                _writer = writer;
+                _subscriptionId = subscriptionId;
             }
 
-            /// <summary>
-            /// Disposes the subscription, signaling the broadcaster to remove
-            /// the associated writer and complete the channel.
-            /// </summary>
             public void Dispose()
             {
-                //Use Interlocked.Exchange to ensure thread-safe, idempotent disposal.
-                //This retrieves the writer *once* and sets the field to null.
-                var writerToUnsubscribe = Interlocked.Exchange(ref _writer, null);
-                if (writerToUnsubscribe != null)
+                //Atomically swap the current ID with our sentinel value (0).
+                //This operation will return the *original* value of _subscriptionId before the swap.
+                long idToUnsubscribe = Interlocked.Exchange(ref _subscriptionId, 0);
+
+                //If the original value was not our sentinel (0), it means this is the first time Dispose() is being called.
+                if (idToUnsubscribe != 0)
                 {
-                    //Call Unsubscribe on the potentially shared broadcaster instance.
-                    _broadcaster?.Unsubscribe(writerToUnsubscribe);
-                    //Release the reference to the broadcaster.
+                    _broadcaster?.Unsubscribe(idToUnsubscribe);
                     _broadcaster = null;
                 }
             }

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 
@@ -10,45 +10,34 @@ namespace Pulsr.Benchmarks
 {
     public readonly record struct MyEvent(int Value);
 
-    [ThreadingDiagnoser()]
+    [ThreadingDiagnoser]
     [MemoryDiagnoser]
-    [ShortRunJob] // Use a shorter run for the very slow 10k subscriber case.
-    [Description("Unified benchmark to test concurrent performance across a range of subscriber counts.")]
-    public class PulsrScalingConcurrentBenchmark
+    [ShortRunJob]
+    [Description("Tests a realistic lifecycle: subscriber ramp-up and a high-churn burst, with concurrent broadcasting throughout.")]
+    public class PulsrRampUpHighChurnBurstsBenchmark
     {
         // --- Workload Configuration ---
-        // We'll run a fixed number of operations to see how the time changes as subscribers increase.
-        private const int BroadcastsPerRun = 50;
-        private const int ChurnsPerRun = 100; // A churn is one subscribe + one unsubscribe
-
-        // This must be a compile-time constant for the attribute.
-        private const int TotalOperations = BroadcastsPerRun + ChurnsPerRun; // = 110
+        private const int BroadcastDelayMs = 10; //Delay between broadcasts to simulate real-world pacing
+        private readonly MyEvent _eventToBroadcast = new(42);
 
         // --- Benchmark State ---
         private Pulsr<MyEvent> _pulsr;
-        private readonly MyEvent _eventToBroadcast = new(42);
 
-        // --- Parameters for Scaling ---
+        // --- Parameters ---
 
-        [Params(10, 1000, 10_000)]
-        public int SubscriberCount { get; set; }
-
-        [Params(1, 4)]
-        public int BroadcasterThreads { get; set; }
+        [Params(100, 1000, 10_000)]
+        public int TargetSubscriberCount { get; set; }
 
         [Params(1, 4)]
-        public int ChurnThreads { get; set; }
+        public int BroadcasterParallelTasks { get; set; }
+
+        [Params(10, 25)] // Percentage of subscribers to churn in the burst
+        public int ChurnBurstPercentage { get; set; }
 
         [GlobalSetup]
         public void GlobalSetup()
         {
-            // This setup runs for each combination of parameters.
-            // It will be very fast for SubscriberCount=10 and noticeably slower for SubscriberCount=10000.
             _pulsr = new Pulsr<MyEvent>();
-            for (int i = 0; i < SubscriberCount; i++)
-            {
-                var (_, subscription) = _pulsr.Subscribe();
-            }
         }
 
         [GlobalCleanup]
@@ -57,40 +46,69 @@ namespace Pulsr.Benchmarks
             _pulsr.Dispose();
         }
 
-        [Benchmark(OperationsPerInvoke = TotalOperations)]
-        public Task ConcurrentBroadcastAndChurn()
+        [Benchmark]
+        public async Task RealisticRampUpAndBurst()
         {
-            int broadcastsPerThread = BroadcastsPerRun / BroadcasterThreads;
-            int churnsPerThread = ChurnsPerRun / ChurnThreads;
+            var cts = new CancellationTokenSource();
+            var liveSubscriptions = new List<IDisposable>(TargetSubscriberCount);
 
-            var tasks = new List<Task>(BroadcasterThreads + ChurnThreads);
-
-            // Create tasks for broadcasting threads
-            for (int i = 0; i < BroadcasterThreads; i++)
+            // 1. START BACKGROUND BROADCASTERS
+            // These tasks will run for the entire duration of the benchmark,
+            // continuously broadcasting events while the subscriber list changes.
+            var broadcasterTasks = new List<Task>(BroadcasterParallelTasks);
+            for (int i = 0; i < BroadcasterParallelTasks; i++)
             {
-                tasks.Add(Task.Run(async () =>
+                broadcasterTasks.Add(Task.Run(async () =>
                 {
-                    for (int j = 0; j < broadcastsPerThread; j++)
+                    while (!cts.Token.IsCancellationRequested)
                     {
                         await _pulsr.BroadcastAsync(_eventToBroadcast);
+                        //A small delay to prevent a tight loop and simulate a real message cadence
+                        await Task.Delay(BroadcastDelayMs, cts.Token);
                     }
-                }));
+                }, cts.Token));
             }
 
-            // Create tasks for churning threads
-            for (int i = 0; i < ChurnThreads; i++)
+            // 2. RAMP-UP PHASE
+            // Incrementally add subscribers up to the target count.
+            for (int i = 0; i < TargetSubscriberCount; i++)
             {
-                tasks.Add(Task.Run(() =>
-                {
-                    for (int j = 0; j < churnsPerThread; j++)
-                    {
-                        var (_, subscription) = _pulsr.Subscribe();
-                        subscription.Dispose();
-                    }
-                }));
+                var (_, subscription) = _pulsr.Subscribe();
+                liveSubscriptions.Add(subscription);
             }
 
-            return Task.WhenAll(tasks);
+            // 3. CHURN BURST PHASE
+            // Simulate a sudden, high-volatility event.
+            int churnCount = TargetSubscriberCount * ChurnBurstPercentage / 100;
+
+            // Unsubscribe burst: A portion of existing subscribers disconnect.
+            for (int i = 0; i < churnCount; i++)
+            {
+                // Dispose subscriptions from the start of the list
+                liveSubscriptions[i].Dispose();
+            }
+
+            // Subscribe burst: A new set of subscribers connects.
+            for (int i = 0; i < churnCount; i++)
+            {
+                // We don't need to store these new subscriptions for this test.
+                var (_, subscription) = _pulsr.Subscribe();
+            }
+
+            // 4. CLEANUP
+            // Stop the background broadcasters and wait for them to finish.
+            cts.Cancel();
+
+            try
+            {
+                await Task.WhenAll(broadcasterTasks);
+            }
+            catch (TaskCanceledException)
+            { }
+            catch (OperationCanceledException)
+            { }
+
+            //Note: Remaining live subscriptions will be cleaned up by Pulsr.Dispose() in GlobalCleanup.
         }
     }
 }
