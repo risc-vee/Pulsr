@@ -72,7 +72,7 @@ namespace Pulsr
         /// Broadcasts a message to all currently subscribed channel writers.
         /// This method is thread-safe and can be called concurrently.
         /// </summary>
-        public async ValueTask BroadcastAsync(TMessage ev)
+        public async ValueTask BroadcastAsync(TMessage message)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(Pulsr<TMessage>));
 
@@ -83,15 +83,15 @@ namespace Pulsr
 
             if (_writers.Count == 1)
             {
-                var w = _writers.Single();
-                await WriteToChannelAsync(w.Key, w.Value, ev).ConfigureAwait(false);
+                var (subscriptionId, writer) = _writers.Single();
+                await WriteToChannelAsync(subscriptionId, writer, message).ConfigureAwait(false);
                 return;
             }
 
             var tasks = new List<Task>(_writers.Count);
             foreach (var (subscriptionId, writer) in _writers)
             {
-                tasks.Add(WriteToChannelAsync(subscriptionId, writer, ev));
+                tasks.Add(WriteToChannelAsync(subscriptionId, writer, message));
             }
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
